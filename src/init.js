@@ -1,7 +1,7 @@
 import {initState} from "./initState.js";
 import { compileToFunction } from './compile/index.js'
-import {mountComponent} from "./lifecycle.js";
-import { nextTick } from "./observe/watcher.js";
+import { callHook, mountComponent } from "./lifecycle"
+import { mergeOptions } from "./utils"
 
 export function initMixin (Vue){
 
@@ -9,7 +9,10 @@ export function initMixin (Vue){
         // 将用户选项挂载到实例上
         const vm = this
         vm.$options = options
+        vm.$options = mergeOptions(Vue.options, options)
+        callHook(vm, 'beforeCreate')  // 依次调用 beforeCreate 生命周期钩子
         initState(vm)
+        callHook(vm, 'created')  // 依次调用 created 生命周期钩子
         if(options.el){
             vm.$mount(options.el)
         }
