@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Document</title>
+</head>
+<body>
+<div id="app" >
+    <div>
+        <span>{{hobby}}</span>
+    </div>
+
+</div>
+<script src="./vue.js"></script>
+<script>
+    const vm = new Vue({
+        data:{
+            hobby:['eat','drink',['1','2']]
+        },
+        el:'#app'
+
+    })
+    vm.hobby[2].push('3')
+
+
+</script>
+</body>
+</html>
