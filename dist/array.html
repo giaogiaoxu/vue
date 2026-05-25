@@ -8,7 +8,7 @@
 <body>
 <div id="app" >
     <div>
-        <span>{{hobby}}</span>
+        <span>{{fullName}}</span>
     </div>
 
 </div>
@@ -16,12 +16,21 @@
 <script>
     const vm = new Vue({
         data:{
-            hobby:['eat','drink',['1','2']]
+            hobby:['eat','drink',['1','2']],
+            fristName:'John',
+            lastname:'Doe'
+        },
+        computed:{
+            fullName(){
+                return this.fristName + this.lastname
+            }
         },
         el:'#app'
 
     })
     vm.hobby[2].push('3')
+    vm.fristName = 'john'
+    vm.lastname = 'doe'
 
 
 </script>
