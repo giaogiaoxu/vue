@@ -188,13 +188,30 @@
       }
     }]);
   }();
-  Dep.target = null;
+  Dep.target = null; // Dep.target 用于存放当前要收集的 watcher
+  var stack$1 = []; // 用于存放 dep 要通知的 watcher 栈
+  /**
+   * 将传入的 watcher 赋值给 Dep.target 作为当前 dep 要收集的 watcher，同时将 watcher 放入栈中等待 dep 通知
+   * @param {Watcher} watcher 要收集和通知的 watcher
+   */
+  function pushTarget(watcher) {
+    stack$1.push(watcher);
+    Dep.target = watcher;
+  }
+  /**
+   * 从栈中弹出最后一个 watcher，其实就是当前的 Dep.target
+   * 然后重新将栈中最后一个赋值给 Dep.target，当数组为空时 Dep.target 就为 undefined
+   */
+  function popTarget() {
+    stack$1.pop();
+    Dep.target = stack$1[stack$1.length - 1];
+  }
 
   var Observer = /*#__PURE__*/function () {
     function Observer(data) {
       _classCallCheck(this, Observer);
       this.dep = new Dep();
-      Object.defineProperty(data, '__ob__', {
+      Object.defineProperty(data, "__ob__", {
         value: this,
         enumerable: false
       });
@@ -222,7 +239,7 @@
     }]);
   }();
   function observe(data) {
-    if (_typeof(data) !== 'object' || data === null) {
+    if (_typeof(data) !== "object" || data === null) {
       return;
     }
     if (data.__ob__ instanceof Observer) return;
@@ -245,7 +262,7 @@
       get: function get() {
         if (Dep.target) {
           dep.depend();
-          if (childOb.dep) {
+          if (childOb !== null && childOb !== void 0 && childOb.dep) {
             childOb.dep.depend();
           }
           if (Array.isArray(value)) {
@@ -263,17 +280,161 @@
     });
   }
 
+  var id = 0;
+  var Watcher = /*#__PURE__*/function () {
+    function Watcher(vm, fn, option) {
+      _classCallCheck(this, Watcher);
+      this.vm = vm;
+      this.id = id++;
+      this.getter = fn;
+      this.renderWatcher = option; //如果为true，就是渲染watcher
+      this.deps = [];
+      this.depsId = new Set();
+      if (option && option.lazy) {
+        this.dirty = option.lazy;
+        this.lazy = option.lazy;
+      }
+      this.value = this.lazy ? undefined : this.get();
+    }
+    return _createClass(Watcher, [{
+      key: "evaluate",
+      value: function evaluate() {
+        this.value = this.get();
+        this.dirty = false; //第一次初始化computed的时候，会去初始化computed的值，然后等依赖的值发生变化才会重新获取新值
+      }
+    }, {
+      key: "get",
+      value: function get() {
+        pushTarget(this);
+        //每次渲染前，让dep.target为当前watcher实例，然render函数中读取的属性都收集当前watcher实例
+        // set的时候更新执行这个watcher的方法
+        var value = this.getter.call(this.vm);
+        popTarget();
+        // 收集完后清空dep.target
+        return value;
+      }
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        var id = dep.id;
+        // 首先是一次更新中，会可能多次访问到一个属性，不能每次访问到这个属性，把同样的watcher添加进去
+        // 一个属性可能会对应多个watcher，也就是对应多个组件，一个watcher也会对应多个属性
+
+        // 1、当某个响应式属性触发了get,会触发dep上的append,在去调用当前Dep类上的target上的watcher去进行双向添加
+        // 2、先往当前的watcher上保存dep，往depsID去对dep去重
+        if (!this.depsId.has(id)) {
+          this.deps.push(dep);
+          this.depsId.add(id);
+          dep.addSub(this);
+        }
+      }
+      /**
+       * 让计算属性 watcher 中的所有 dep 与上一层 watcher 如渲染 watcher 互相记住
+       */
+    }, {
+      key: "depend",
+      value: function depend() {
+        var i = this.deps.length;
+        while (i--) {
+          this.deps[i].depend(); // 让计算属性 watcher 中的所有 dep 重新去收集当前的 Dep.target watcher
+        }
+      }
+    }, {
+      key: "update",
+      value: function update() {
+        // 当属性触发set时，会循环当前dep依赖的watcher执行 //所以当有computedWatcher时，计算属性就需要重新计算值
+        if (this.lazy) {
+          this.dirty = true; // 计算属性依赖的值发生变化后，计算属性就需要重新计算值 //触发重新更新模版，然后使用模版上出发到computedWatcher的get，重新调用evaluate
+        } else {
+          queueWatcher(this); // 不是计算 watcher 就将 watcher 缓存到队列中等待异步更新渲染
+        }
+      }
+    }, {
+      key: "run",
+      value: function run() {
+        this.value = this.get();
+      }
+    }]);
+  }();
+  var has = {};
+  var queue = [];
+  var pending = false;
+  function flushSchedulerQueue() {
+    var flushQueue = queue.slice(0);
+    queue = [];
+    has = {};
+    pending = false;
+    flushQueue.forEach(function (watcher) {
+      return watcher.run();
+    });
+  }
+  function queueWatcher(watcher) {
+    var id = watcher.id;
+    if (!has[id]) {
+      // 在一轮响应式数据修改中，watcher只需要执行一次就行了
+      queue.push(watcher);
+      has[id] = true;
+      // 当当前没有正在执行的更新队列时，就执行更新队列，否则就push到队列中，等待上一轮更新完成后执行，同时有新的数据修改时，就执行更新队列
+      if (!pending) {
+        pending = true;
+        nextTick(flushSchedulerQueue);
+      }
+    }
+  }
+  var callbacks = [];
+  var waiting = false;
+  function flushCallbacks() {
+    var cbs = callbacks.slice(0);
+    waiting = false;
+    callbacks = [];
+    cbs.forEach(function (fn) {
+      return fn();
+    });
+    console.log("更新了");
+  }
+  function nextTick(fn) {
+    // 把任务push到队列中 ，修改waiting的状态，不去重复创建异步任务，
+    // 当上一个任务还没执行完，往队列中push新的任务，会在上一个任务中去一次行完成
+    callbacks.push(fn);
+    if (!waiting) {
+      waiting = true;
+      timeFunc(flushCallbacks);
+    }
+  }
+  var timeFunc;
+  if (window.Promise) {
+    timeFunc = function timeFunc() {
+      window.Promise.resolve().then(flushCallbacks);
+    };
+  } else if (window.MutationObserver) {
+    var observer = new MutationObserver(flushCallbacks);
+    var textNode = document.createTextNode(1);
+    observer.observe(textNode, {
+      characterData: true
+    });
+    timeFunc = function timeFunc() {
+      textNode.textContent = "2";
+    };
+  } else {
+    timeFunc = function timeFunc() {
+      setTimeout(flushCallbacks);
+    };
+  }
+
   function initState(vm) {
     var opts = vm.$options;
     if (opts.data) {
       initData(vm);
     }
+    if (opts.computed) {
+      initComputed(vm);
+    }
   }
   function initData(vm) {
     var data = vm.$options.data;
-    data = typeof data === 'function' ? data.call(vm) : data;
+    data = typeof data === "function" ? data.call(vm) : data;
     vm._data = data;
-    proxy(vm, '_data');
+    proxy(vm, "_data");
     observe(data);
   }
   function proxy(vm, source) {
@@ -287,6 +448,39 @@
         }
       });
     });
+  }
+  function initComputed(vm) {
+    var computed = vm.$options.computed;
+    for (var key in computed) {
+      var userDef = computed[key];
+      var watchers = vm._computedWatchers = {};
+      var getter = typeof userDef === "function" ? userDef : userDef.get;
+      var watcher = new Watcher(vm, getter, {
+        lazy: true
+      });
+      watchers[key] = watcher;
+      defineComputed(vm, key, userDef);
+    }
+  }
+  function defineComputed(vm, key, userDef) {
+    Object.defineProperty(vm, key, {
+      get: createComputedGetter(key),
+      set: userDef.set || function () {}
+    });
+  }
+  function createComputedGetter(key) {
+    return function () {
+      var watcher = this._computedWatchers[key];
+      if (watcher.dirty) {
+        //当dirty为true时，表明有依赖属性数据改变了，需要重新计算watcher.dirty
+        watcher.evaluate();
+      }
+      if (Dep.target) {
+        // 计算属性 watcher 出栈后，如果 Dep.target 还有值，就让计算属性中的数据 dep 收集上一层的 watcher 如渲染watcher
+        watcher.depend();
+      }
+      return watcher.value;
+    };
   }
 
   var unicodeRegExp = /a-zA-Z\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD/;
@@ -510,116 +704,6 @@
     };
   }
 
-  var id = 0;
-  var Watcher = /*#__PURE__*/function () {
-    function Watcher(vm, fn, option) {
-      _classCallCheck(this, Watcher);
-      this.vm = vm;
-      this.id = id++;
-      this.getter = fn;
-      this.renderWatcher = option;
-      this.deps = [];
-      this.depsId = new Set();
-      this.get();
-    }
-    return _createClass(Watcher, [{
-      key: "get",
-      value: function get() {
-        Dep.target = this;
-        //每次渲染前，让dep.target为当前watcher实例，然render函数中读取的属性都收集当前watcher实例
-        // set的时候更新执行这个watcher的方法
-        this.getter();
-        Dep.target = null;
-        // 收集完后清空dep.target
-      }
-    }, {
-      key: "addDep",
-      value: function addDep(dep) {
-        var id = dep.id;
-        // 首先是一次更新中，会可能多次访问到一个属性，不能每次访问到这个属性，把同样的watcher添加进去
-        // 一个属性可能会对应多个watcher，也就是对应多个组件，一个watcher也会对应多个属性
-        if (!this.depsId.has(id)) {
-          this.deps.push(dep);
-          this.depsId.add(id);
-          dep.addSub(this);
-        }
-      }
-    }, {
-      key: "update",
-      value: function update() {
-        queueWatcher(this);
-      }
-    }, {
-      key: "run",
-      value: function run() {
-        this.get();
-      }
-    }]);
-  }();
-  var has = {};
-  var queue = [];
-  var pending = false;
-  function flushSchedulerQueue() {
-    var flushQueue = queue.slice(0);
-    queue = [];
-    has = {};
-    pending = false;
-    flushQueue.forEach(function (watcher) {
-      return watcher.run();
-    });
-  }
-  function queueWatcher(watcher) {
-    var id = watcher.id;
-    if (!has[id]) {
-      // 在一轮响应式数据修改中，watcher只需要执行一次就行了
-      queue.push(watcher);
-      has[id] = true;
-      // 当当前没有正在执行的更新队列时，就执行更新队列，否则就push到队列中，等待上一轮更新完成后执行，同时有新的数据修改时，就执行更新队列
-      if (!pending) {
-        pending = true;
-        nextTick(flushSchedulerQueue);
-      }
-    }
-  }
-  var callbacks = [];
-  var waiting = false;
-  function flushCallbacks() {
-    var cbs = callbacks.slice(0);
-    waiting = false;
-    callbacks = [];
-    cbs.forEach(function (fn) {
-      return fn();
-    });
-  }
-  function nextTick(fn) {
-    // 把任务push到队列中 ，修改waiting的状态，不去重复创建异步任务，
-    // 当上一个任务还没执行完，往队列中push新的任务，会在上一个任务中去一次行完成
-    callbacks.push(fn);
-    if (!waiting) {
-      waiting = true;
-      timeFunc(flushCallbacks);
-    }
-  }
-  var timeFunc;
-  if (window.Promise) {
-    timeFunc = function timeFunc() {
-      window.Promise.resolve().then(flushCallbacks);
-    };
-  } else if (window.MutationObserver) {
-    var observer = new MutationObserver(flushCallbacks);
-    var textNode = document.createTextNode(1);
-    observer.observe(textNode, {
-      characterData: true
-    });
-    timeFunc = function timeFunc() {
-      textNode.textContent = '2';
-    };
-  } else {
-    timeFunc = function timeFunc() {
-      setTimeout(flushCallbacks);
-    };
-  }
-
   function patch(oldVnode, vnode) {
     var isRealElement = oldVnode.nodeType;
     if (isRealElement) {
@@ -651,7 +735,7 @@
   function patchProps(el, props) {
     console.log(props);
     for (var key in props) {
-      if (key === 'style') {
+      if (key === "style") {
         for (var _key in props.style) {
           el.style[_key] = props.style[_key];
         }
@@ -682,7 +766,6 @@
   function mountComponent(vm, el) {
     vm.$el = el;
     new Watcher(vm, function () {
-      console.log('更新视图');
       vm._update(vm._render());
     }, true);
   }
@@ -716,7 +799,6 @@
       }
       mountComponent(vm, el);
     };
-    console.log(Vue.prototype);
   }
 
   function Vue(options) {
