@@ -282,14 +282,22 @@
 
   var id = 0;
   var Watcher = /*#__PURE__*/function () {
-    function Watcher(vm, fn, option) {
+    function Watcher(vm, expOrfn, option, cb) {
       _classCallCheck(this, Watcher);
       this.vm = vm;
       this.id = id++;
-      this.getter = fn;
+      if (typeof expOrfn === "string") {
+        this.getter = function () {
+          return vm[expOrfn];
+        };
+      } else {
+        this.getter = expOrfn;
+      }
       this.renderWatcher = option; //如果为true，就是渲染watcher
       this.deps = [];
       this.depsId = new Set();
+      this.user = option && option.user;
+      this.cb = cb;
       if (option && option.lazy) {
         this.dirty = option.lazy;
         this.lazy = option.lazy;
@@ -352,7 +360,11 @@
     }, {
       key: "run",
       value: function run() {
-        this.value = this.get();
+        var oldValue = this.value;
+        var newValue = this.value = this.get();
+        if (this.user) {
+          this.cb.call(this.vm, newValue, oldValue);
+        }
       }
     }]);
   }();
@@ -390,7 +402,6 @@
     cbs.forEach(function (fn) {
       return fn();
     });
-    console.log("更新了");
   }
   function nextTick(fn) {
     // 把任务push到队列中 ，修改waiting的状态，不去重复创建异步任务，
@@ -429,6 +440,9 @@
     if (opts.computed) {
       initComputed(vm);
     }
+    if (opts.watch) {
+      initWatch(vm);
+    }
   }
   function initData(vm) {
     var data = vm.$options.data;
@@ -448,6 +462,29 @@
         }
       });
     });
+  }
+  function initWatch(vm) {
+    var watch = vm.$options.watch;
+    var _loop = function _loop(key) {
+      var handler = watch[key];
+      if (Array.isArray(handler)) {
+        handler.forEach(function (h) {
+          createWatcher(vm, key, h);
+        });
+      } else {
+        createWatcher(vm, key, handler);
+      }
+    };
+    for (var key in watch) {
+      _loop(key);
+    }
+  }
+  function createWatcher(vm, key, handler) {
+    if (typeof handler === "string") {
+      // handler 是字符串时表明要用 methods 中的同名方法
+      handler = vm[handler]; // methods 中的方法也会被挂载到 vm 上
+    }
+    return vm.$watch(key, handler);
   }
   function initComputed(vm) {
     var computed = vm.$options.computed;
@@ -733,7 +770,6 @@
     return vnode.el;
   }
   function patchProps(el, props) {
-    console.log(props);
     for (var key in props) {
       if (key === "style") {
         for (var _key in props.style) {
@@ -803,9 +839,13 @@
 
   function Vue(options) {
     this._init(options);
-    Vue.prototype.$nextTick = nextTick;
-    console.log(Vue, 'vue');
   }
+  Vue.prototype.$nextTick = nextTick;
+  Vue.prototype.$watch = function (expOrfn, cb) {
+    new Watcher(this, expOrfn, {
+      user: true
+    }, cb);
+  };
   initMixin(Vue);
   initLifeCycle(Vue);
 

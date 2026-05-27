@@ -1,6 +1,7 @@
 import { observe } from "./observe/index.js";
 import Watcher from "./observe/watcher.js";
 import Dep from "./observe/dep.js";
+
 export function initState(vm) {
   const opts = vm.$options;
   if (opts.data) {
@@ -8,6 +9,9 @@ export function initState(vm) {
   }
   if (opts.computed) {
     initComputed(vm);
+  }
+  if (opts.watch) {
+    initWatch(vm);
   }
 }
 function initData(vm) {
@@ -29,6 +33,26 @@ function proxy(vm, source) {
       },
     });
   });
+}
+function initWatch(vm) {
+  const watch = vm.$options.watch;
+  for (let key in watch) {
+    const handler = watch[key];
+    if (Array.isArray(handler)) {
+      handler.forEach((h) => {
+        createWatcher(vm, key, h);
+      });
+    } else {
+      createWatcher(vm, key, handler);
+    }
+  }
+}
+function createWatcher(vm, key, handler) {
+  if (typeof handler === "string") {
+    // handler 是字符串时表明要用 methods 中的同名方法
+    handler = vm[handler]; // methods 中的方法也会被挂载到 vm 上
+  }
+  return vm.$watch(key, handler);
 }
 function initComputed(vm) {
   const computed = vm.$options.computed;

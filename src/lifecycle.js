@@ -30,7 +30,6 @@ function createElm(vnode) {
   return vnode.el;
 }
 function patchProps(el, props) {
-  console.log(props);
   for (let key in props) {
     if (key === "style") {
       for (let key in props.style) {
