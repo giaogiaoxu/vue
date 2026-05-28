@@ -389,7 +389,7 @@
       // 当当前没有正在执行的更新队列时，就执行更新队列，否则就push到队列中，等待上一轮更新完成后执行，同时有新的数据修改时，就执行更新队列
       if (!pending) {
         pending = true;
-        nextTick(flushSchedulerQueue);
+        nextTick$1(flushSchedulerQueue);
       }
     }
   }
@@ -403,7 +403,7 @@
       return fn();
     });
   }
-  function nextTick(fn) {
+  function nextTick$1(fn) {
     // 把任务push到队列中 ，修改waiting的状态，不去重复创建异步任务，
     // 当上一个任务还没执行完，往队列中push新的任务，会在上一个任务中去一次行完成
     callbacks.push(fn);
@@ -432,6 +432,14 @@
     };
   }
 
+  function initStateMixin(Vue) {
+    Vue.prototype.$nextTick = nextTick$1;
+    Vue.prototype.$watch = function (expOrfn, cb) {
+      new Watcher(this, expOrfn, {
+        user: true
+      }, cb);
+    };
+  }
   function initState(vm) {
     var opts = vm.$options;
     if (opts.data) {
@@ -749,7 +757,6 @@
       parentElm.insertBefore(newElm, oldVnode.nextSibling);
       parentElm.removeChild(oldVnode);
     } else {
-      // 更新对比
       var _newElm = createElm(vnode);
       var _parentElm = oldVnode.el.parentNode;
       _parentElm.insertBefore(_newElm, oldVnode.nextSibling);
@@ -840,13 +847,8 @@
   function Vue(options) {
     this._init(options);
   }
-  Vue.prototype.$nextTick = nextTick;
-  Vue.prototype.$watch = function (expOrfn, cb) {
-    new Watcher(this, expOrfn, {
-      user: true
-    }, cb);
-  };
   initMixin(Vue);
+  initStateMixin(Vue);
   initLifeCycle(Vue);
 
   return Vue;
