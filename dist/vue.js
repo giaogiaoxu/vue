@@ -567,7 +567,7 @@
       currentParent = stack[stack.length - 1];
     }
     function chars(text) {
-      text = text.replace(/\s/g, '');
+      text = text.replace(/\s/g, "");
       text && currentParent.children.push({
         type: TEXT_TYPE$1,
         text: text
@@ -600,7 +600,7 @@
       return false;
     }
     while (html) {
-      var textEnd = html.indexOf('<');
+      var textEnd = html.indexOf("<");
       if (textEnd === 0) {
         var startTagMatch = parseStartTag(); //匹配开始标签
         if (startTagMatch) {
