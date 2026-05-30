@@ -6,39 +6,11 @@
     <title>Document</title>
 </head>
 <body>
-<div id="app" >
-    <div>
-        <span>{{fullName}}</span>
-    </div>
-
-</div>
+<div id="app"></div>
 <script src="./vue.js"></script>
 <script>
-    const vm = new Vue({
-        data:{
-            hobby:['eat','drink',['1','2']],
-            fristName:'John',
-            lastname:'Doe'
-        },
-        computed:{
-            fullName(){
-                return this.fristName + this.lastname
-            }
-        },
-        watch:{
-            fristName(){
-                console.log('first name changed',this.fristName)
-            }
-        },
-        el:'#app'
-
-    })
-    vm.hobby[2].push('3')
-    vm.fristName = '123'
- 
-    vm.lastname = 'doe'
-
 
 </script>
 </body>
+
 </html>

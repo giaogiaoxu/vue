@@ -12,9 +12,7 @@ const conditionalComment = /^<!\[/;
 
 const ELEMENT_TYPE = 1;
 const TEXT_TYPE = 3;
-const stack = [];
-let currentParent;
-let root;
+
 function createASTElement(tagName, attrs) {
   return {
     tag: tagName,
@@ -25,6 +23,9 @@ function createASTElement(tagName, attrs) {
   };
 }
 export function parseHtml(html) {
+    const stack = [];
+    let currentParent;
+    let root;
   function start(tagName, attrs) {
     let element = createASTElement(tagName, attrs);
     if (!root) {

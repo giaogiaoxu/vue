@@ -72,6 +72,7 @@ function generate(ast) {
 }
 
 export function compileToFunction(template) {
+    console.log(template)
     const ast = parseHtml(template)
 
     let code = generate(ast)

@@ -9,7 +9,7 @@ export function initMixin (Vue){
         // 将用户选项挂载到实例上
         const vm = this
         vm.$options = options
-        vm.$options = mergeOptions(Vue.options, options)
+        vm.$options = mergeOptions({}, options)
         callHook(vm, 'beforeCreate')  // 依次调用 beforeCreate 生命周期钩子
         initState(vm)
         callHook(vm, 'created')  // 依次调用 created 生命周期钩子
