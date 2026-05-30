@@ -25,11 +25,17 @@
                 return this.fristName + this.lastname
             }
         },
+        watch:{
+            fristName(){
+                console.log('first name changed',this.fristName)
+            }
+        },
         el:'#app'
 
     })
     vm.hobby[2].push('3')
-    vm.fristName = 'john'
+    vm.fristName = '123'
+ 
     vm.lastname = 'doe'
 
 

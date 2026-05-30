@@ -1,17 +1,27 @@
 import Dep, { popTarget, pushTarget } from "./dep.js";
 let id = 0;
 class Watcher {
-  constructor(vm, fn, option) {
+  constructor(vm, expOrfn, option, cb) {
     this.vm = vm;
     this.id = id++;
-    this.getter = fn;
+    if (typeof expOrfn === "string") {
+      this.getter = function () {
+        return vm[expOrfn];
+      };
+    } else {
+      this.getter = expOrfn;
+    }
+
     this.renderWatcher = option; //如果为true，就是渲染watcher
     this.deps = [];
     this.depsId = new Set();
+    this.user = option && option.user;
+    this.cb = cb;
     if (option && option.lazy) {
       this.dirty = option.lazy;
       this.lazy = option.lazy;
     }
+
     this.value = this.lazy ? undefined : this.get();
   }
   evaluate() {
@@ -59,7 +69,11 @@ class Watcher {
     }
   }
   run() {
-    this.value = this.get();
+    const oldValue = this.value;
+    const newValue = (this.value = this.get());
+    if (this.user) {
+      this.cb.call(this.vm, newValue, oldValue);
+    }
   }
 }
 let has = {};
@@ -70,7 +84,6 @@ function flushSchedulerQueue() {
   queue = [];
   has = {};
   pending = false;
-
   flushQueue.forEach((watcher) => watcher.run());
 }
 function queueWatcher(watcher) {
@@ -94,7 +107,6 @@ function flushCallbacks() {
   waiting = false;
   callbacks = [];
   cbs.forEach((fn) => fn());
-  console.log("更新了");
 }
 export function nextTick(fn) {
   // 把任务push到队列中 ，修改waiting的状态，不去重复创建异步任务，
