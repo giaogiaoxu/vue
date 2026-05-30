@@ -8,7 +8,6 @@ function patch(oldVnode, vnode) {
     parentElm.insertBefore(newElm, oldVnode.nextSibling);
     parentElm.removeChild(oldVnode);
   } else {
-    // 更新对比
     const newElm = createElm(vnode);
     const parentElm = oldVnode.el.parentNode;
     parentElm.insertBefore(newElm, oldVnode.nextSibling);
@@ -59,6 +58,7 @@ export function initLifeCycle(Vue) {
     return vm.$options.render.call(vm);
   };
 }
+
 export function mountComponent(vm, el) {
   vm.$el = el;
   new Watcher(
